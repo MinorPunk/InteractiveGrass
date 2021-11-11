@@ -3,8 +3,10 @@ Shader "Unlit/Grass"
     Properties
     {
         _MainTex ("Texture", 2D) = "white" {}
+        _VelocityMap ("VelocityMap", 2D) = "black" {}
         _WindSpeed ("WindSpeed", float) = 1
         _NoiseScale ("NoiseScale",float) = 1
+        _RTPixelSize ("RTPixelSize",float) = 1
     }
     SubShader
     {
@@ -38,9 +40,11 @@ Shader "Unlit/Grass"
             };
 
             sampler2D _MainTex;
+            sampler2D _VelocityMap;
             float4 _MainTex_ST;
             float _NoiseScale;
             float _WindSpeed;
+            float _RTPixelSize;
 
             float4 wglnoise_mod289(float4 x)
             {
@@ -103,11 +107,20 @@ Shader "Unlit/Grass"
             v2f vert (appdata v)
             {
                 v2f o;
+                //取VelocityMap值
+                float4 worldPos = mul(unity_ObjectToWorld, v.vertex);
+                worldPos.y = worldPos.z;
+                float2 velocity = tex2Dlod(_VelocityMap, worldPos * _RTPixelSize);
+                //remap
+                //velocity.x = velocity.x * 2 - 1;
+                //velocity.y = velocity.y * 2 - 1;
                 float2 noisePos = float2(v.vertex.x + _Time.y *_WindSpeed, v.vertex.z + _Time.y*_WindSpeed) * _NoiseScale;
                 float noise = ClassicNoise(noisePos);
-                float xOffset = v.vertex.y * noise;
+                float xOffset = v.vertex.y * noise + v.vertex.y * velocity.x;
+                float zOffset = v.vertex.y * velocity.y;
                 float4 newVertex = v.vertex;
                 newVertex.x += xOffset;
+                newVertex.z += zOffset;
                 o.vertex = UnityObjectToClipPos(newVertex);
                 o.uv = TRANSFORM_TEX(v.uv, _MainTex);
                 //UNITY_TRANSFER_FOG(o,o.vertex);

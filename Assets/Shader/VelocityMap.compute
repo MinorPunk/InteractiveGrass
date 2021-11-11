@@ -1,0 +1,41 @@
+#pragma kernel CSMain
+
+struct Creature{
+    float3 Pos;
+    float Radius;
+};
+
+RWStructuredBuffer<Creature> CreatureSources;
+RWTexture2D<float2> VelocityTexture;
+Texture2D<float2> VelocityTextureSwap;
+float DissipateSpeed;
+float RTPixelSize;
+float InteractPower;
+
+[numthreads(8,8,1)]
+void CSMain (uint2 id : SV_DispatchThreadID)
+{
+    //In Compute Shaders, data access is limited on some data types
+    float2 dissipateVel = VelocityTextureSwap[id] * (1 - DissipateSpeed);
+    float2 power;
+    for (uint i = 0; i < CreatureSources.Length; i++){
+        float2 cPos = float2(CreatureSources[i].Pos.x,CreatureSources[i].Pos.z);
+        float dist = distance(cPos, id * RTPixelSize);
+        if(dist < CreatureSources[i].Radius){
+            //float powerX = (cPos.x - id.x * RTPixelSize) * InteractPower;
+            //float powerY = (cPos.y - id.y * RTPixelSize) * InteractPower;
+            //power += (( id * RTPixelSize - cPos)/dist) * InteractPower;
+            power += (1 - saturate(dist/CreatureSources[i].Radius)) * (id.xy * RTPixelSize - cPos) * InteractPower;
+            //float powerY = (1 - saturate(abs(cPos.y - id.y * RTPixelSize)/CreatureSources[i].Radius)) * InteractPower;
+        }
+    }
+    float powerLength = length(power);
+    float dissipateLength = length(dissipateVel);
+    if(powerLength < 0.001 || dissipateLength >= powerLength){
+        VelocityTexture[id] = dissipateVel;
+    }else{
+        if(dissipateLength < powerLength){
+            VelocityTexture[id] = power;
+        }
+    }
+}
